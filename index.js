@@ -43,9 +43,9 @@ const run = async () => {
 
     // Generates JWT
     app.put('/api/user', async (req, res) => {
-      const { uid, isVerified } = req.body;
+      const { uid } = req.body;
 
-      if (!uid || typeof isVerified !== 'boolean') {
+      if (!uid) {
         return res
           .status(406)
           .send(
@@ -62,19 +62,15 @@ const run = async () => {
             $setOnInsert: {
               uid,
               role: 'user',
-              isVerified: isVerified,
             },
           },
           { upsert: true, returnDocument: 'before' }
         );
 
-        const accessToken = jwt.sign(
-          { uid, role: result?.value?.role || 'user', isVerified: isVerified },
-          process.env.JWT_SECRET,
-          {
-            expiresIn: '1d',
-          }
-        );
+        const role = result?.value?.role || 'user';
+        const accessToken = jwt.sign({ uid, role }, process.env.JWT_SECRET, {
+          expiresIn: '1d',
+        });
 
         return res.status(200).send(accessToken);
       } catch (err) {
