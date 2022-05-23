@@ -37,6 +37,10 @@ const run = async () => {
       .db('paint-it-black-manufacturer')
       .collection('user');
 
+    const toolCollection = client
+      .db('paint-it-black-manufacturer')
+      .collection('tool');
+
     console.log('DB CONNECTED!');
 
     // Routes
@@ -75,6 +79,16 @@ const run = async () => {
         return res.status(200).send(accessToken);
       } catch (err) {
         res.status(500).send(err?.message || 'Could not generate JWT');
+      }
+    });
+
+    // Gets all tools information
+    app.get('/api/tool', async (req, res) => {
+      try {
+        const result = await toolCollection.find({}).toArray();
+        return res.status(200).send(result);
+      } catch (error) {
+        return res.status(500).send('Could not fetch tools data.');
       }
     });
   } finally {
