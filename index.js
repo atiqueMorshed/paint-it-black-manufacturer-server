@@ -137,11 +137,26 @@ const run = async () => {
       }
     });
 
+    // Gets all orders of an user.
+    app.get('/api/order/:uid', validateJWT, async (req, res) => {
+      const { uid } = req.params;
+      const decodedUid = req?.decoded?.uid;
+      if (!uid || decodedUid !== uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+      try {
+        const result = await orderCollection.find({ uid: uid }).toArray();
+        return res.status(200).send(result);
+      } catch (error) {
+        return res.status(500).send('Server Error. Could not get orders.');
+      }
+    });
+
     // Sets order information
     app.post('/api/order', validateJWT, async (req, res) => {
       const orderData = req.body;
       const decodedUid = req?.decoded?.uid;
-      if (decodedUid !== orderData.uid) {
+      if (!orderData?.uid || decodedUid !== orderData.uid) {
         return res.status(403).send('Forbidden Access! (Not your JWT bro).');
       }
       const {
