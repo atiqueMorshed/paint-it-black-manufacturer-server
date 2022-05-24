@@ -14,6 +14,31 @@ const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}
 app.use(express.json());
 app.use(cors());
 
+const validateJWT = (req, res, next) => {
+  try {
+    if (!req?.headers?.authorization) {
+      return res.status(401).send('Unauthorized Access (JWT not found).');
+    }
+    const token = req.headers.authorization.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).send('Unauthorized Access (NO JWT found).');
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET, (error, decoded) => {
+      if (error) {
+        return res.status(403).send('Forbidden Access! (Invalid JWT)');
+      }
+      if (decoded) {
+        req.decoded = decoded;
+        next();
+      }
+    });
+  } catch (error) {
+    return res.status(401).send('Unauthorized Access.');
+  }
+};
+
 // Check if incoming JSON is valid.
 app.use((err, req, res, next) => {
   if (err.status === 400) {
@@ -40,6 +65,10 @@ const run = async () => {
     const toolCollection = client
       .db('paint-it-black-manufacturer')
       .collection('tool');
+
+    const orderCollection = client
+      .db('paint-it-black-manufacturer')
+      .collection('order');
 
     console.log('DB CONNECTED!');
 
@@ -91,7 +120,76 @@ const run = async () => {
         return res.status(500).send('Could not fetch tools data.');
       }
     });
+
+    // Gets a specific tools information
+    app.get('/api/tool/:id', async (req, res) => {
+      const { id } = req.params;
+      if (!id || !ObjectId.isValid(id)) {
+        return res.status(406).send('Invalid Tool ID.');
+      }
+
+      try {
+        const result = await toolCollection.findOne({ _id: ObjectId(id) });
+
+        return res.status(200).send(result);
+      } catch (error) {
+        return res.status(500).send('Could not fetch tools data.');
+      }
+    });
+
+    // Sets order information
+    app.post('/api/order', validateJWT, async (req, res) => {
+      const orderData = req.body;
+      const decodedUid = req?.decoded?.uid;
+      if (decodedUid !== orderData.uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+      const {
+        uid,
+        email,
+        name,
+        address,
+        phone,
+        toolId,
+        toolName,
+        quantity,
+        total,
+      } = orderData;
+
+      if (
+        !uid ||
+        !email ||
+        !name ||
+        !address ||
+        !phone ||
+        !toolId ||
+        !toolName ||
+        !quantity ||
+        !total
+      ) {
+        return res.status(406).send('Insufficient order information.');
+      }
+
+      try {
+        const result = await orderCollection.insertOne({
+          uid,
+          email,
+          name,
+          address,
+          phone,
+          toolId,
+          toolName,
+          quantity,
+          total,
+        });
+
+        return res.status(200).send({ _id: result.insertedId, ...orderData });
+      } catch (error) {
+        return res.status(500).send('Could not post order information.');
+      }
+    });
   } finally {
+    // Close connection
   }
 };
 
