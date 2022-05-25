@@ -1,11 +1,12 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-
+import Stripe from 'stripe';
 import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb';
 import jwt from 'jsonwebtoken';
 
 // Vars
+const stripe = new Stripe(`${process.env.STRIPE_SECRET_KEY}`);
 const app = express();
 const port = process.env.PORT;
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.5yy5x.mongodb.net/?retryWrites=true&w=majority`;
@@ -69,6 +70,10 @@ const run = async () => {
     const orderCollection = client
       .db('paint-it-black-manufacturer')
       .collection('order');
+
+    const paymentCollection = client
+      .db('paint-it-black-manufacturer')
+      .collection('payment');
 
     console.log('DB CONNECTED!');
 
@@ -145,7 +150,10 @@ const run = async () => {
         return res.status(403).send('Forbidden Access! (Not your JWT bro).');
       }
       try {
-        const result = await orderCollection.find({ uid: uid }).toArray();
+        const result = await orderCollection
+          .find({ uid: uid })
+          .sort({ orderedOn: -1 })
+          .toArray();
         return res.status(200).send(result);
       } catch (error) {
         return res.status(500).send('Server Error. Could not get orders.');
@@ -192,9 +200,10 @@ const run = async () => {
     app.post('/api/order', validateJWT, async (req, res) => {
       const orderData = req.body;
       const decodedUid = req?.decoded?.uid;
-      if (!orderData?.uid || decodedUid !== orderData.uid) {
-        return res.status(503).send('Could not delete the order.');
+      if (!uid || decodedUid !== uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
       }
+
       const {
         uid,
         email,
@@ -232,11 +241,73 @@ const run = async () => {
           toolName,
           quantity,
           total,
+          orderedOn: new Date(),
         });
 
         return res.status(200).send({ _id: result.insertedId, ...orderData });
       } catch (error) {
         return res.status(500).send('Could not post order information.');
+      }
+    });
+
+    // Updates payment info in DB.
+    app.patch('/api/order', validateJWT, async (req, res) => {
+      const { uid, transactionId, orderId, total } = req.body;
+      const decodedUid = req?.decoded?.uid;
+      if (!uid || decodedUid !== uid)
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+
+      if (!orderId || !ObjectId.isValid(orderId)) {
+        return res.status(406).send('Invalid order ID.');
+      }
+      const filter = { _id: ObjectId(orderId) };
+      const date = new Date();
+      try {
+        const updatedDoc = {
+          $set: {
+            paymentStatus: 'paid',
+            transactionId,
+            paidOn: date,
+          },
+        };
+        const updateResult = await orderCollection.updateOne(
+          filter,
+          updatedDoc
+        );
+        const result = await paymentCollection.insertOne({
+          orderId,
+          transactionId,
+          total,
+          date,
+        });
+        res.status(200).send(updateResult);
+      } catch (error) {
+        res.status(500).send(error.message);
+      }
+    });
+
+    // Stripe Payment Intent
+    app.post('/api/create-payment-intent', validateJWT, async (req, res) => {
+      try {
+        const { total, uid } = req.body;
+
+        const decodedUid = req?.decoded?.uid;
+        if (!uid || decodedUid !== uid) {
+          return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+        }
+
+        // Create a PaymentIntent with the order amount and currency
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: total * 100,
+          currency: 'usd',
+          payment_method_types: ['card'],
+        });
+
+        res.send({
+          clientSecret: paymentIntent.client_secret,
+        });
+      } catch (error) {
+        res.status(500).send(error.message);
       }
     });
   } finally {
