@@ -138,6 +138,23 @@ const run = async () => {
       }
     });
 
+    // Get User Type
+    app.get('/api/usertype/:uid', validateJWT, async (req, res) => {
+      const { uid } = req.params;
+      const decodedUid = req?.decoded?.uid;
+      if (!uid || decodedUid !== uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+
+      try {
+        const type = req.decoded.role;
+
+        return res.status(200).send(type);
+      } catch (err) {
+        res.status(500).send(err?.message || 'Could not get profile data.');
+      }
+    });
+
     // Gets all tools information
     app.get('/api/tool', async (req, res) => {
       try {
