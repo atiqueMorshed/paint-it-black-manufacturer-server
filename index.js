@@ -152,12 +152,48 @@ const run = async () => {
       }
     });
 
+    // Delets an order of an user.
+    app.delete('/api/order/', validateJWT, async (req, res) => {
+      const { uid, orderId } = req.body;
+      const decodedUid = req?.decoded?.uid;
+      if (!uid || decodedUid !== uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+      if (!orderId || !ObjectId.isValid(orderId)) {
+        return res.status(406).send('Invalid order ID.');
+      }
+
+      const query = {
+        _id: ObjectId(orderId),
+        paymentStatus: { $exists: false },
+      };
+      const options = {
+        projection: { uid: 1, _id: 0 },
+      };
+      try {
+        const order = await orderCollection.findOne(query, options);
+
+        if (!order?.uid || uid !== order.uid) {
+          return res
+            .status(401)
+            .send('You are not authorized to delete this order.');
+        }
+
+        const result = await orderCollection.deleteOne(query);
+        if (result.deletedCount === 1)
+          return res.status(200).send('Deletion Successful.');
+        else return res.status(200).send('Deletion Failed.');
+      } catch (error) {
+        return res.status(500).send('Server Error. Could not get orders.');
+      }
+    });
+
     // Sets order information
     app.post('/api/order', validateJWT, async (req, res) => {
       const orderData = req.body;
       const decodedUid = req?.decoded?.uid;
       if (!orderData?.uid || decodedUid !== orderData.uid) {
-        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+        return res.status(503).send('Could not delete the order.');
       }
       const {
         uid,
