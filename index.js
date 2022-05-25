@@ -121,6 +121,61 @@ const run = async () => {
       }
     });
 
+    // Get User Profile
+    app.get('/api/userprofile/:uid', validateJWT, async (req, res) => {
+      const { uid } = req.params;
+      const decodedUid = req?.decoded?.uid;
+      if (!uid || decodedUid !== uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+
+      try {
+        const result = await userCollection.findOne({ uid: uid });
+
+        return res.status(200).send(result);
+      } catch (err) {
+        res.status(500).send(err?.message || 'Could not get profile data.');
+      }
+    });
+
+    // Gets all tools information
+    app.get('/api/tool', async (req, res) => {
+      try {
+        const result = await toolCollection.find({}).toArray();
+        return res.status(200).send(result);
+      } catch (error) {
+        return res.status(500).send('Could not fetch tools data.');
+      }
+    });
+
+    // Update User Profile
+    app.patch('/api/userprofile', validateJWT, async (req, res) => {
+      const profileData = req.body;
+      const decodedUid = req?.decoded?.uid;
+      if (!profileData.uid || decodedUid !== profileData.uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+      const { location, education, phone, linkedin, uid } = req.body;
+
+      try {
+        const result = await userCollection.updateOne(
+          { uid: uid },
+          {
+            $set: {
+              location: location || '',
+              education: education || '',
+              phone: phone || '',
+              linkedin: linkedin || '',
+            },
+          }
+        );
+
+        return res.status(200).send(result);
+      } catch (err) {
+        res.status(500).send(err?.message || 'Could not get profile data.');
+      }
+    });
+
     // Gets all tools information
     app.get('/api/tool', async (req, res) => {
       try {
