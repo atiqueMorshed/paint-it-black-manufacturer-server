@@ -58,6 +58,7 @@ const client = new MongoClient(uri, {
 const run = async () => {
   try {
     await client.connect();
+
     // Collections
     const userCollection = client
       .db('paint-it-black-manufacturer')
@@ -74,6 +75,10 @@ const run = async () => {
     const paymentCollection = client
       .db('paint-it-black-manufacturer')
       .collection('payment');
+
+    const reviewCollection = client
+      .db('paint-it-black-manufacturer')
+      .collection('review');
 
     console.log('DB CONNECTED!');
 
@@ -200,7 +205,7 @@ const run = async () => {
     app.post('/api/order', validateJWT, async (req, res) => {
       const orderData = req.body;
       const decodedUid = req?.decoded?.uid;
-      if (!uid || decodedUid !== uid) {
+      if (!orderData?.uid || decodedUid !== orderData.uid) {
         return res.status(403).send('Forbidden Access! (Not your JWT bro).');
       }
 
@@ -252,7 +257,7 @@ const run = async () => {
 
     // Updates payment info in DB.
     app.patch('/api/order', validateJWT, async (req, res) => {
-      const { uid, transactionId, orderId, total } = req.body;
+      const { uid, transactionId, orderId, total, quantity, toolId } = req.body;
       const decodedUid = req?.decoded?.uid;
       if (!uid || decodedUid !== uid)
         return res.status(403).send('Forbidden Access! (Not your JWT bro).');
@@ -260,6 +265,11 @@ const run = async () => {
       if (!orderId || !ObjectId.isValid(orderId)) {
         return res.status(406).send('Invalid order ID.');
       }
+
+      if (!toolId || !ObjectId.isValid(toolId)) {
+        return res.status(406).send('Invalid tool ID.');
+      }
+
       const filter = { _id: ObjectId(orderId) };
       const date = new Date();
       try {
@@ -270,10 +280,23 @@ const run = async () => {
             paidOn: date,
           },
         };
+
         const updateResult = await orderCollection.updateOne(
           filter,
           updatedDoc
         );
+
+        // Decrement tool available quantity
+        const updatedToolDoc = {
+          $inc: {
+            available: parseInt(-1 * quantity),
+          },
+        };
+        const toolAvailabilityUpdate = await toolCollection.updateOne(
+          { _id: ObjectId(toolId) },
+          updatedToolDoc
+        );
+
         const result = await paymentCollection.insertOne({
           orderId,
           transactionId,
@@ -308,6 +331,48 @@ const run = async () => {
         });
       } catch (error) {
         res.status(500).send(error.message);
+      }
+    });
+
+    // Adds review
+    app.post('/api/review', validateJWT, async (req, res) => {
+      const reviewData = req.body;
+      const decodedUid = req?.decoded?.uid;
+      if (!reviewData?.uid || decodedUid !== reviewData.uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+
+      const { uid, review, rating, displayName } = reviewData;
+
+      if (!uid || !review || !rating || !displayName) {
+        return res.status(406).send('Insufficient review information.');
+      }
+
+      try {
+        const result = await reviewCollection.insertOne({
+          uid,
+          review,
+          rating,
+          displayName,
+          reviewedOn: new Date(),
+        });
+
+        return res.status(200).send(result);
+      } catch (error) {
+        return res.status(500).send(error.message);
+      }
+    });
+
+    // Gets all reviews.
+    app.get('/api/review', async (req, res) => {
+      try {
+        const result = await reviewCollection
+          .find({})
+          .sort({ reviewedOn: -1 })
+          .toArray();
+        return res.status(200).send(result);
+      } catch (error) {
+        return res.status(500).send(error.message);
       }
     });
   } finally {
