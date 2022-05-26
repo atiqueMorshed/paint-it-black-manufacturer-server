@@ -86,7 +86,7 @@ const run = async () => {
 
     // Generates JWT
     app.put('/api/user', async (req, res) => {
-      const { uid } = req.body;
+      const { uid, email } = req.body;
 
       if (!uid) {
         return res
@@ -105,6 +105,8 @@ const run = async () => {
             $setOnInsert: {
               uid,
               role: 'user',
+              email: email,
+              registeredOn: new Date(),
             },
           },
           { upsert: true, returnDocument: 'before' }
@@ -118,6 +120,24 @@ const run = async () => {
         return res.status(200).send(accessToken);
       } catch (err) {
         res.status(500).send(err?.message || 'Could not generate JWT');
+      }
+    });
+
+    // Get All Users
+    app.get('/api/user/:uid', validateJWT, async (req, res) => {
+      const { uid } = req.params;
+      const decodedUid = req?.decoded?.uid;
+
+      if (!uid || decodedUid !== uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+
+      try {
+        const result = await userCollection.find({}).toArray();
+
+        return res.status(200).send(result);
+      } catch (err) {
+        res.status(500).send(err?.message || 'Could not get profile data.');
       }
     });
 
@@ -183,6 +203,30 @@ const run = async () => {
               education: education || '',
               phone: phone || '',
               linkedin: linkedin || '',
+            },
+          }
+        );
+
+        return res.status(200).send(result);
+      } catch (err) {
+        res.status(500).send(err?.message || 'Could not get profile data.');
+      }
+    });
+
+    // Makes user admin
+    app.patch('/api/makeadmin', validateJWT, async (req, res) => {
+      const { uid, userUid } = req.body;
+      const decodedUid = req?.decoded?.uid;
+      if (!uid || decodedUid !== uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+
+      try {
+        const result = await userCollection.updateOne(
+          { uid: userUid },
+          {
+            $set: {
+              role: 'admin',
             },
           }
         );
