@@ -306,6 +306,9 @@ const run = async () => {
       if (!uid || decodedUid !== uid) {
         return res.status(403).send('Forbidden Access! (Not your JWT bro).');
       }
+      if (!req.decoded.role || req.decoded.role !== 'admin') {
+        return res.status(403).send('Forbidden Access! (Not an admin).');
+      }
       if (!toolId || !ObjectId.isValid(toolId)) {
         return res.status(406).send('Invalid tool ID.');
       }
