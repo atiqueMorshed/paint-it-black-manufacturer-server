@@ -433,6 +433,20 @@ const run = async () => {
       }
     });
 
+    // Gets latest orders (public).
+    app.get('/api/latestorder/', async (req, res) => {
+      try {
+        const result = await orderCollection
+          .find({})
+          .sort({ orderedOn: -1 })
+          .limit(3)
+          .toArray();
+        return res.status(200).send(result);
+      } catch (error) {
+        return res.status(500).send('Server Error. Could not get orders.');
+      }
+    });
+
     // Deletes an order of an user.
     app.delete('/api/order/', validateJWT, async (req, res) => {
       const { uid, orderId } = req.body;
