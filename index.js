@@ -299,6 +299,33 @@ const run = async () => {
       }
     });
 
+    // Delets a tool.
+    app.delete('/api/tool/', validateJWT, async (req, res) => {
+      const { uid, toolId } = req.body;
+      const decodedUid = req?.decoded?.uid;
+      if (!uid || decodedUid !== uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+      if (!toolId || !ObjectId.isValid(toolId)) {
+        return res.status(406).send('Invalid tool ID.');
+      }
+
+      const query = {
+        _id: ObjectId(toolId),
+      };
+
+      try {
+        const result = await toolCollection.deleteOne(query);
+
+        if (result.deletedCount === 1)
+          return res.status(200).send('Deletion Successful.');
+        else
+          return res.status(400).send('No tool was found with the given ID.');
+      } catch (error) {
+        return res.status(500).send('Server Error. Could not get orders.');
+      }
+    });
+
     // Gets all orders of an user.
     app.get('/api/order/:uid', validateJWT, async (req, res) => {
       const { uid } = req.params;
