@@ -175,16 +175,6 @@ const run = async () => {
       }
     });
 
-    // Gets all tools information
-    app.get('/api/tool', async (req, res) => {
-      try {
-        const result = await toolCollection.find({}).toArray();
-        return res.status(200).send(result);
-      } catch (error) {
-        return res.status(500).send('Could not fetch tools data.');
-      }
-    });
-
     // Update User Profile
     app.patch('/api/userprofile', validateJWT, async (req, res) => {
       const profileData = req.body;
@@ -244,6 +234,52 @@ const run = async () => {
         return res.status(200).send(result);
       } catch (error) {
         return res.status(500).send('Could not fetch tools data.');
+      }
+    });
+
+    // Adds a tool
+    app.post('/api/tool', validateJWT, async (req, res) => {
+      const { uid, tool } = req.body;
+
+      const decodedUid = req.decoded.uid;
+      if (!uid || decodedUid !== uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+      if (!req.decoded.role || req.decoded.role !== 'admin') {
+        return res.status(403).send('Forbidden Access! (Not an admin).');
+      }
+
+      const {
+        toolName,
+        toolDescription,
+        minQuantity,
+        available,
+        price,
+        imageUrl,
+      } = tool;
+
+      if (
+        !toolName ||
+        !toolDescription ||
+        !minQuantity ||
+        !available ||
+        !price ||
+        !imageUrl
+      ) {
+        res.status(406).send('Valid tools data required.');
+      }
+      try {
+        const result = await toolCollection.insertOne({
+          toolName,
+          toolDescription,
+          minQuantity,
+          available,
+          price,
+          imageUrl,
+        });
+        return res.status(200).send(result);
+      } catch (error) {
+        return res.status(500).send('Could not add tool.');
       }
     });
 
