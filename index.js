@@ -299,7 +299,7 @@ const run = async () => {
       }
     });
 
-    // Delets a tool.
+    // Deletes a tool.
     app.delete('/api/tool/', validateJWT, async (req, res) => {
       const { uid, toolId } = req.body;
       const decodedUid = req?.decoded?.uid;
@@ -329,6 +329,92 @@ const run = async () => {
       }
     });
 
+    // Admin Gets all order.
+    app.get('/api/orderAdmin/:uid', validateJWT, async (req, res) => {
+      const { uid } = req.params;
+      const decodedUid = req?.decoded?.uid;
+      if (!uid || decodedUid !== uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+      if (!req.decoded.role || req.decoded.role !== 'admin') {
+        return res.status(403).send('Forbidden Access! (Not an admin).');
+      }
+
+      try {
+        const result = await orderCollection
+          .find({})
+          .sort({ orderedOn: -1 })
+          .toArray();
+        return res.status(200).send(result);
+      } catch (error) {
+        return res.status(500).send('Server Error. Could not get orders.');
+      }
+    });
+
+    // Admin deletes any order.
+    app.delete('/api/orderAdmin/', validateJWT, async (req, res) => {
+      const { uid, orderId } = req.body;
+      const decodedUid = req?.decoded?.uid;
+      if (!uid || decodedUid !== uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+
+      if (!req.decoded.role || req.decoded.role !== 'admin') {
+        return res.status(403).send('Forbidden Access! (Not an admin).');
+      }
+
+      if (!orderId || !ObjectId.isValid(orderId)) {
+        return res.status(406).send('Invalid order ID.');
+      }
+
+      const query = {
+        _id: ObjectId(orderId),
+        paymentStatus: { $exists: false },
+      };
+
+      try {
+        const result = await orderCollection.deleteOne(query);
+        if (result.deletedCount === 1)
+          return res.status(200).send('Deletion Successful.');
+        else return res.status(400).send('Found no Order to delete.');
+      } catch (error) {
+        return res.status(500).send('Server Error. Could not get orders.');
+      }
+    });
+
+    // Admin updates order status to shipped.
+    app.patch('/api/orderAdmin', validateJWT, async (req, res) => {
+      const { uid, orderId } = req.body;
+      const decodedUid = req?.decoded?.uid;
+      if (!uid || decodedUid !== uid) {
+        return res.status(403).send('Forbidden Access! (Not your JWT bro).');
+      }
+
+      if (!req.decoded.role || req.decoded.role !== 'admin') {
+        return res.status(403).send('Forbidden Access! (Not an admin).');
+      }
+
+      if (!orderId || !ObjectId.isValid(orderId)) {
+        return res.status(406).send('Invalid order ID.');
+      }
+
+      const filter = { _id: ObjectId(orderId) };
+      const date = new Date();
+      try {
+        const updatedDoc = {
+          $set: {
+            paymentStatus: 'shipped',
+            shippedOn: date,
+          },
+        };
+
+        const result = await orderCollection.updateOne(filter, updatedDoc);
+        res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send(error.message);
+      }
+    });
+
     // Gets all orders of an user.
     app.get('/api/order/:uid', validateJWT, async (req, res) => {
       const { uid } = req.params;
@@ -347,7 +433,7 @@ const run = async () => {
       }
     });
 
-    // Delets an order of an user.
+    // Deletes an order of an user.
     app.delete('/api/order/', validateJWT, async (req, res) => {
       const { uid, orderId } = req.body;
       const decodedUid = req?.decoded?.uid;
