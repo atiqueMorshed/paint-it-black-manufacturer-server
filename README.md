@@ -2,13 +2,6 @@
 
 > Paint It Black is an art tool manufacturer website. Users can buy different art products from here. Users can also place review and see other's reviews.
 
-.
-
-> [frontend](https://paint-it-black-art-tools.web.app/)
-> or https://paint-it-black-art-tools.web.app/
->
-> [backend](https://paint-it-black.herokuapp.com/)
-> or https://paint-it-black.herokuapp.com/
 
 ## Features
 
